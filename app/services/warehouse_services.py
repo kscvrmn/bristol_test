@@ -3,6 +3,7 @@ from app.models.database import database, warehouse_states, movements
 from datetime import datetime
 from sqlalchemy import and_, select
 import logging
+import sqlite3
 
 logger = logging.getLogger(__name__)
 
@@ -45,26 +46,33 @@ async def process_message(message: KafkaMessage):
 
 async def get_warehouse_state(warehouse_id: str, product_id: str) -> WarehouseState:
     """Получает текущее состояние склада для указанного товара"""
-    query = select([warehouse_states]).where(
-        and_(
-            warehouse_states.c.warehouse_id == warehouse_id,
-            warehouse_states.c.product_id == product_id
-        )
-    )
-
-    result = await database.fetch_one(query)
-
-    if not result:
+    logger.info(f"Запрос состояния склада: warehouse_id={warehouse_id}, product_id={product_id}")
+    
+    conn = sqlite3.connect('warehouse.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM warehouse_states WHERE warehouse_id=? AND product_id=?", 
+                  (warehouse_id, product_id))
+    rows = cursor.fetchall()
+    logger.info(f"Данные в базе SQLite для запроса: {rows}")
+    
+    if rows:
+        id_val, wh_id, prod_id, qty = rows[0]
+        logger.info(f"Данные из SQLite: id={id_val}, warehouse_id={wh_id}, product_id={prod_id}, quantity={qty}")
+        conn.close()
+        
         return WarehouseState(
-            warehouse_id=warehouse_id,
-            product_id=product_id,
-            quantity=0
+            warehouse_id=wh_id,
+            product_id=prod_id,
+            quantity=qty
         )
-
+    
+    conn.close()
+    
+    logger.warning(f"Склад не найден: warehouse_id={warehouse_id}, product_id={product_id}")
     return WarehouseState(
-        warehouse_id=result["warehouse_id"],
-        product_id=result["product_id"],
-        quantity=result["quantity"]
+        warehouse_id=warehouse_id,
+        product_id=product_id,
+        quantity=0
     )
 
 

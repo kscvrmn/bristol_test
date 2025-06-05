@@ -6,6 +6,7 @@ from app.services.warehouse_service import process_message
 import asyncio
 import logging
 from app.core.config import settings
+from concurrent.futures import ThreadPoolExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,8 @@ class KafkaConsumerService:
         self.should_stop = False
 
     def start(self):
-        threading.Thread(target=self._consume, daemon=True).start()
+        with ThreadPoolExecutor() as executor:
+            executor.submit(self._consume)
         logger.info(f"Запущен Kafka-потребитель для темы {self.topic}")
 
     def stop(self):

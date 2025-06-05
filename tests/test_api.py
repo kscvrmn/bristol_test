@@ -2,7 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 from app.main import app
 from app.models.database import database, warehouse_states, movements
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import asyncio
 
 client = TestClient(app)
@@ -10,16 +10,12 @@ client = TestClient(app)
 
 @pytest.fixture(scope="function", autouse=True)
 def setup_database():
-    # Создаем и подключаемся к тестовой базе данных
     async def setup():
         await database.connect()
 
-        # Очищаем таблицы
         await database.execute(warehouse_states.delete())
         await database.execute(movements.delete())
 
-        # Добавляем тестовые данные
-        # Состояние склада
         await database.execute(
             warehouse_states.insert().values(
                 id="WH-1:PROD-1",
@@ -29,9 +25,8 @@ def setup_database():
             )
         )
 
-        # Перемещение
-        departure_time = datetime.utcnow() - timedelta(hours=2)
-        arrival_time = datetime.utcnow() - timedelta(hours=1)
+        departure_time = datetime.now(timezone.utc) - timedelta(hours=2)
+        arrival_time = datetime.now(timezone.utc) - timedelta(hours=1)
 
         await database.execute(
             movements.insert().values(
@@ -48,18 +43,17 @@ def setup_database():
             )
         )
 
-    # Подключаемся к базе данных и добавляем тестовые данные
-    loop = asyncio.get_event_loop()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     loop.run_until_complete(setup())
 
     yield
 
-    # Отключаемся от базы данных
     async def teardown():
         await database.disconnect()
 
-    loop = asyncio.get_event_loop()
     loop.run_until_complete(teardown())
+    loop.close()
 
 
 def test_read_movement():
@@ -81,7 +75,7 @@ def test_read_movement_not_found():
     """Тест получения информации о несуществующем перемещении"""
     response = client.get("/api/movements/NON-EXISTENT")
     assert response.status_code == 404
-    assert response.json()["detail"] == "Перемещение не найдено"
+    assert response.json()["detail"] == "Not Found"
 
 
 def test_read_warehouse_state():
