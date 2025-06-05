@@ -19,12 +19,10 @@ class KafkaConsumerService:
         self.should_stop = False
 
     def start(self):
-        """Запускает Kafka в отдельном потоке"""
         threading.Thread(target=self._consume, daemon=True).start()
         logger.info(f"Запущен Kafka-потребитель для темы {self.topic}")
 
     def stop(self):
-        """Останавливает Kafka"""
         self.should_stop = True
         logger.info(f"Остановлен Kafka-потребитель для темы {self.topic}")
 
