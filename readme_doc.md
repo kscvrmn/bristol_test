@@ -4,7 +4,7 @@
 
 Этот проект представляет собой микросервис на Python с использованием FastAPI, предназначенный для обработки сообщений от складов через Kafka. Сообщения уведомляют о приемках и отправках товаров. Сервис сохраняет данные о перемещениях и предоставляет API для получения информации о конкретных перемещениях и текущих состояниях складов.
 
-База данных SQLite используется для хранения информации о состоянии складов и движениях товаров. Kafka выступает в роли брокера сообщений для асинхронной обработки событий со складов.
+База данных PostgreSQL используется для хранения информации о состоянии складов и движениях товаров. Миграции базы данных управляются с помощью Alembic. Kafka выступает в роли брокера сообщений для асинхронной обработки событий со складов.
 
 ## Структура проекта
 
@@ -15,14 +15,18 @@
     -   `core/`: Основные конфигурационные файлы.
         -   `config.py`: Загрузка настроек приложения (например, из переменных окружения).
     -   `models/`: Модели данных и схемы.
-        -   `database.py`: Настройка подключения к базе данных (SQLAlchemy, `databases`).
+        -   `database.py`: Настройка подключения к базе данных (SQLAlchemy, ORM модели).
         -   `schemas.py`: Pydantic-схемы для валидации данных и сериализации.
     -   `services/`: Бизнес-логика и сервисы.
         -   `kafka_consumer.py`: Логика Kafka-консьюмера.
         -   `warehouse_service.py`: Логика обработки сообщений и взаимодействия с БД.
+-   `migrations/`: Директория с миграциями Alembic.
+    -   `versions/`: Файлы миграций.
+    -   `env.py`: Конфигурация среды для миграций.
 -   `tests/`: Директория для тестов (пока пустая).
 -   `Dockerfile`: Инструкции для сборки Docker-образа приложения.
 -   `pyproject.toml`: Файл для управления зависимостями с помощью Poetry.
+-   `alembic.ini`: Конфигурационный файл для Alembic.
 -   `readme_doc.md`: Этот файл документации.
 -   `README.md`: Оригинальный файл README с описанием задания.
 -   `.gitignore`: Файл для исключения ненужных файлов из Git.
@@ -31,6 +35,7 @@
 
 1.  **Docker**: Установленный и запущенный Docker Desktop или Docker Engine.
 2.  **Poetry (опционально, для локальной разработки)**: Если вы планируете работать с зависимостями или запускать проект локально без Docker, установите Poetry ([инструкция](https://python-poetry.org/docs/#installation)).
+3.  **PostgreSQL**: Для локальной разработки потребуется установленный PostgreSQL или его Docker-образ.
 
 ## Переменные окружения
 
@@ -42,7 +47,7 @@
     -   Пример для локально запущенной Kafka: `localhost:9092`.
 -   `KAFKA_TOPIC`: Название Kafka-топика для чтения сообщений (по умолчанию: `ru.retail.warehouses`).
 -   `DATABASE_URL`: URL для подключения к базе данных. 
-    -   Для SQLite внутри контейнера (файл будет создан в рабочей директории `/app`): `sqlite:///./warehouse.db`.
+    -   Для PostgreSQL: `postgresql://postgres:postgres@localhost:5432/warehouse`.
 
 **Пример `.env` файла:**
 
@@ -50,7 +55,7 @@
 APP_NAME="Сервис Склада"
 KAFKA_BOOTSTRAP_SERVERS="kafka:29092"
 KAFKA_TOPIC="ru.retail.warehouses"
-DATABASE_URL="sqlite:///./warehouse.db"
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/warehouse"
 ```
 
 ## Установка и запуск (с Docker)
@@ -69,7 +74,7 @@ DATABASE_URL="sqlite:///./warehouse.db"
 
 2.  **Запуск Docker-контейнера:**
 
-    Для запуска потребуется работающий экземпляр Kafka. Если вы используете Docker Compose для запуска Kafka, убедитесь, что имя сервиса Kafka и порт соответствуют значению `KAFKA_BOOTSTRAP_SERVERS`.
+    Для запуска потребуется работающий экземпляр Kafka и PostgreSQL. Если вы используете Docker Compose для запуска сервисов, убедитесь, что имена сервисов и порты соответствуют значениям в переменных окружения.
 
     **Примечание:** Если контейнер с таким именем (`bristol-app` в примере ниже) уже существует, команда `docker run` завершится ошибкой. В этом случае вам нужно сначала остановить и удалить существующий контейнер:
     ```bash
@@ -83,7 +88,7 @@ DATABASE_URL="sqlite:///./warehouse.db"
     docker run -d -p 8000:8000 \
       -e KAFKA_BOOTSTRAP_SERVERS="ваш_kafka_хост:порт" \
       -e KAFKA_TOPIC="ru.retail.warehouses" \
-      -e DATABASE_URL="sqlite:///./warehouse.db" \
+      -e DATABASE_URL="postgresql://postgres:postgres@ваш_postgres_хост:5432/warehouse" \
       --name bristol-app \
       bristol-test-service
     ```
@@ -95,7 +100,7 @@ DATABASE_URL="sqlite:///./warehouse.db"
 
 ## Запуск с Docker Compose (Рекомендуется)
 
-Для удобного управления всеми сервисами (ваше приложение, Kafka, Zookeeper) рекомендуется использовать Docker Compose.
+Для удобного управления всеми сервисами (ваше приложение, Kafka, Zookeeper, PostgreSQL) рекомендуется использовать Docker Compose.
 
 1.  **Создайте файл `docker-compose.yml`** в корне проекта (если вы этого еще не сделали). Актуальную версию файла можно найти в истории чата или сгенерировать заново, если потребуется.
 
@@ -145,9 +150,17 @@ DATABASE_URL="sqlite:///./warehouse.db"
 
 3.  **Настройка переменных окружения:**
 
-    Создайте файл `.env` в корне проекта с необходимыми переменными (см. раздел "Переменные окружения"). Убедитесь, что `KAFKA_BOOTSTRAP_SERVERS` указывает на ваш локальный Kafka.
+    Создайте файл `.env` в корне проекта с необходимыми переменными (см. раздел "Переменные окружения"). Убедитесь, что `KAFKA_BOOTSTRAP_SERVERS` указывает на ваш локальный Kafka, а `DATABASE_URL` на вашу базу PostgreSQL.
 
-4.  **Запуск приложения:**
+4.  **Применение миграций:**
+
+    Перед запуском приложения необходимо применить миграции к базе данных:
+
+    ```bash
+    alembic upgrade head
+    ```
+
+5.  **Запуск приложения:**
 
     Для запуска FastAPI приложения с Uvicorn:
 
@@ -155,6 +168,46 @@ DATABASE_URL="sqlite:///./warehouse.db"
     uvicorn app.main:app --reload
     ```
     Флаг `--reload` включает автоматическую перезагрузку при изменениях в коде.
+
+## Работа с миграциями Alembic
+
+Проект использует Alembic для управления миграциями базы данных.
+
+1. **Создание новой миграции:**
+
+   Если вы внесли изменения в модели SQLAlchemy и хотите создать новую миграцию:
+
+   ```bash
+   alembic revision --autogenerate -m "Описание изменений"
+   ```
+
+2. **Применение миграций:**
+
+   Для применения всех доступных миграций:
+
+   ```bash
+   alembic upgrade head
+   ```
+
+   Для применения конкретного количества миграций:
+
+   ```bash
+   alembic upgrade +1  # Применить одну следующую миграцию
+   ```
+
+3. **Откат миграций:**
+
+   Для отката последней миграции:
+
+   ```bash
+   alembic downgrade -1
+   ```
+
+   Для отката всех миграций:
+
+   ```bash
+   alembic downgrade base
+   ```
 
 ## API Эндпоинты
 
@@ -213,13 +266,25 @@ DATABASE_URL="sqlite:///./warehouse.db"
     }
     ```
 
-## Запуск Kafka (пример)
+## Запуск PostgreSQL и Kafka (пример)
 
-Для работы сервиса необходим запущенный Kafka. Если у вас нет настроенного Kafka, вы можете быстро запустить его локально с помощью Docker Compose. Создайте файл `docker-compose.yml` (если вы не используете его для всего проекта) со следующим содержимым:
+Для работы сервиса необходим запущенный PostgreSQL и Kafka. Если у вас нет настроенных сервисов, вы можете быстро запустить их локально с помощью Docker Compose. Создайте файл `docker-compose.yml` (если вы не используете его для всего проекта) со следующим содержимым:
 
 ```yaml
 version: '3.8'
 services:
+  postgres:
+    image: postgres:14
+    container_name: postgres
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_DB: warehouse
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
   zookeeper:
     image: confluentinc/cp-zookeeper:7.3.0
     container_name: zookeeper
@@ -244,14 +309,10 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR: 1 # Confluent specific
-      KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 1 # Confluent specific
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1             # Confluent specific
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1  # Confluent specific
-```
 
-Запустите Kafka командой `docker-compose up -d` в директории с этим файлом.
-Убедитесь, что топик `ru.retail.warehouses` создан в Kafka, или что Kafka настроена на автоматическое создание топиков.
+volumes:
+  postgres-data:
+```
 
 ---
 *(Эта документация была сгенерирована и дополнена AI-ассистентом)* 

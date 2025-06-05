@@ -22,5 +22,14 @@ venv/
 .idea/
 .vscode/
 
-# macOS
 .DS_Store
+
+*.db
+*.sqlite
+*.sqlite3
+
+postgres-data/
+
+alembic.ini.local
+
+*.log
