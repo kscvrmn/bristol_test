@@ -2,7 +2,7 @@ import json
 import threading
 from kafka import KafkaConsumer
 from app.models.schemas import KafkaMessage
-from app.services.warehouse_service import process_message
+from app.services.warehouse_services import process_message
 import asyncio
 import logging
 from app.core.config import settings
