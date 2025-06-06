@@ -4,6 +4,9 @@ from app.models.database import database, engine, Base, warehouse_states, moveme
 import logging
 import json
 from datetime import datetime, timedelta
+from app.services.kafka_consumer import KafkaConsumerService
+from app.core.config import settings
+import asyncio
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -60,6 +63,13 @@ async def startup():
             query = movements.select().where(movements.c.movement_id == movement_id)
             movement = await database.fetch_one(query)
             logger.info(f"Добавлены тестовые данные о перемещении: {movement}")
+
+        app.state.kafka_consumer = KafkaConsumerService(
+            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+            topic=settings.KAFKA_TOPIC,
+            loop=asyncio.get_event_loop()
+        )
+        app.state.kafka_consumer.start()
     except Exception as e:
         logger.error(f"Ошибка при добавлении тестовых данных: {str(e)}")
 
@@ -67,3 +77,6 @@ async def startup():
 async def shutdown():
     await database.disconnect()
     logger.info("Соединение с базой данных закрыто")
+
+    if hasattr(app.state, 'kafka_consumer'):
+        app.state.kafka_consumer.stop()
