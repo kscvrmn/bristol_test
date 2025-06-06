@@ -20,46 +20,46 @@
 ### Предварительные требования
 
 - Docker и Docker Compose
-- PostgreSQL (для локальной разработки)
-- Python 3.9+ (для локальной разработки)
 
 ### Запуск с Docker Compose
 
 1. Клонируйте репозиторий
 2. Запустите сервисы:
    ```bash
-   docker-compose up -d
+   docker compose up -d
    ```
 3. Приложение будет доступно по адресу http://localhost:8000
 4. Swagger UI доступен по адресу http://localhost:8000/docs
+5. Kafka UI доступен по адресу http://localhost:8080
 
-### Локальная разработка
+### Остановка сервисов
 
-1. Установите зависимости:
-   ```bash
-   pip install -r requirements.txt
-   ```
-   или с Poetry:
-   ```bash
-   poetry install
-   ```
+```bash
+docker compose down
+```
 
-2. Настройте переменные окружения (создайте файл `.env`):
-   ```
-   DATABASE_URL=postgresql://postgres:postgres@localhost:5432/warehouse
-   KAFKA_BOOTSTRAP_SERVERS=localhost:9092
-   KAFKA_TOPIC=ru.retail.warehouses
-   ```
+### Просмотр логов
 
-3. Примените миграции:
-   ```bash
-   alembic upgrade head
-   ```
+```bash
+docker compose logs app  # Логи приложения
+docker compose logs -f   # Логи всех сервисов в режиме реального времени
+```
 
-4. Запустите приложение:
-   ```bash
-   uvicorn app.main:app --reload
-   ```
+## Структура проекта
+
+```
+.
+├── app                     # Директория с кодом приложения
+│   ├── api                 # API эндпоинты
+│   ├── core                # Конфигурация и основные компоненты
+│   ├── models              # Модели данных
+│   └── services            # Бизнес-логика
+├── migrations              # Миграции Alembic
+├── docker-compose.yml      # Конфигурация Docker Compose
+├── Dockerfile              # Dockerfile для сборки образа приложения
+├── pyproject.toml          # Зависимости проекта (Poetry)
+└── start.sh                # Скрипт для запуска приложения в контейнере
+```
 
 ## Документация
 
@@ -139,12 +139,12 @@
 
 #### 1. Получение информации о перемещении
 
-- **URL:** `/api/movements/{movement_id}`
+- **URL:** `/movements/{movement_id}`
 - **Метод:** GET
 - **Описание:** Возвращает информацию о перемещении по его ID, включая отправителя, получателя, время, прошедшее между отправкой и приемкой, и разницу в количестве товара.
 
 #### 2. Получение информации о состоянии склада
 
-- **URL:** `/api/warehouses/{warehouse_id}/products/{product_id}`
+- **URL:** `/warehouses/{warehouse_id}/products/{product_id}`
 - **Метод:** GET
 - **Описание:** Возвращает информацию текущем запасе товара в конкретном складе.

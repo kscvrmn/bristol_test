@@ -15,7 +15,6 @@ async def get_warehouse_state(warehouse_id: str, product_id: str) -> WarehouseSt
     """Получает текущее состояние склада для указанного товара"""
     logger.info(f"Запрос состояния склада: warehouse_id={warehouse_id}, product_id={product_id}")
     
-    # Используем SQLAlchemy Core для асинхронного запроса
     query = select(warehouse_states).where(
         and_(
             warehouse_states.c.warehouse_id == warehouse_id,
@@ -76,7 +75,6 @@ def get_warehouse_state_sync(db: Session, warehouse_id: str, product_id: str) ->
 
 async def update_warehouse_state(warehouse_id: str, product_id: str, quantity: int):
     """Обновляет состояние склада для указанного товара"""
-    # Формируем ID записи
     record_id = f"{warehouse_id}:{product_id}"
     
     # Проверяем наличие записи
